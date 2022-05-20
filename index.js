@@ -121,6 +121,99 @@ async function signIn(username, userpass) {
   
 }
 
+// ---------- Making a Ride ---------------
+
+app.post('/api/makeride', authenticateToken, (req, res)=>{
+    let bikeID = req.body.bikeID;
+    console.log(bikeID)
+    if(bikeID === undefined || bikeID == '') {
+        res.status(400).send({"message": "Request is not correct!"});
+        return;
+    }
+    createRide(bikeID, req.user).then(value => {res.status(201).send({'id':value});}, reason => {
+        res.status(400).send({"message": reason.message});
+    })
+})
+
+
+async function createRide(bikeID, user) {
+    const User = Parse.Object.extend("User");
+    const query2 = new Parse.Query(User);
+    query2.equalTo("username", user.name);
+    const myusers = await query2.find();
+    const myuser = myusers[0];
+
+    const Bike = Parse.Object.extend("Bike");
+    const query = new Parse.Query(Bike);
+    query.equalTo("objectId", bikeID);
+    const bikes = await query.find();
+    const bike = bikes[0];
+
+    console.log(myuser);
+    console.log(bike);
+
+    // check the distance of the bike and the user
+
+    if (bike.get('Available') ==  false) {
+        throw new Error("premission denied");
+    }
+    const Ride = Parse.Object.extend("Ride");
+    const ride = new Ride();
+    ride.set('BikeInUse', bike);
+    ride.set('UserRiding', myuser);
+    await ride.save()
+
+    // set the bike availablity false
+    bike.set('Available', false)
+    await bike.save()
+}
+
+// ---------- Finishing a Ride ---------------
+
+app.post('/api/finishride', authenticateToken, (req, res)=>{
+    let rideID = req.body.rideID;
+    console.log(rideID)
+    if(rideID === undefined || rideID == '') {
+        res.status(400).send({"message": "Request is not correct!"});
+        return;
+    }
+    finishRide(rideID).then(value => {res.status(201).send({'id':value});}, reason => {
+        res.status(400).send({"message": reason.message});
+    })
+})
+
+
+async function finishRide(rideID) {
+    const myRide = Parse.Object.extend("Ride");
+    const query = new Parse.Query(myRide);
+    query.equalTo("objectId", rideID);
+    const rides = await query.find();
+    const ride = rides[0];
+
+    console.log(ride);
+
+    // check the distance of the bike and the user
+
+    if (ride.get('IsFinished') ==  true) {
+        throw new Error("premission denied");
+    }
+    ride.set('IsFinished', true);
+    await ride.save()
+
+    mybike = ride.get('BikeInUse')
+
+    const Bike = Parse.Object.extend("Bike");
+    const query2 = new Parse.Query(Bike);
+    query2.equalTo("objectId", mybike.get('objectID'));
+    const bikes = await query2.find();
+    const bike = bikes[0];
+    
+    bike.set('Available', true)
+    await bike.save()
+}
+
+
+
 function authenticateToken(req, res, next){
   const authHeader = req.headers["authorization"];
   const token = authHeader && authHeader.split(' ')[1];
@@ -135,3 +228,4 @@ function authenticateToken(req, res, next){
   })
 
 }
+
